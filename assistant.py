@@ -8,9 +8,8 @@ load_dotenv()
 
 # API Keys and Database ID
 notion_api_key = os.getenv('NOTION_API_KEY')
-openai_api_key = os.getenv('OPENAI_API_KEY')
+openai.api_key = os.getenv('OPENAI_API_KEY')
 notion_database_id = os.getenv('NOTION_DATABASE_ID')
-
 
 # Notion Headers
 notion_headers = {
@@ -20,11 +19,13 @@ notion_headers = {
 }
 
 def fetch_notion_data(database_id):
+    """Fetch data from the Notion database."""
     url = f'https://api.notion.com/v1/databases/{database_id}/query'
     response = requests.post(url, headers=notion_headers)
     return response.json()
 
 def query_gpt(prompt):
+    """Send a prompt to OpenAI GPT and return the response."""
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",  # Use "gpt-4" if you have access
@@ -39,19 +40,6 @@ def query_gpt(prompt):
     except Exception as e:
         return f"Error: {e}"
 
-
-    try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=prompt,
-            max_tokens=150,
-            temperature=0.7
-        )
-        return response.choices[0].text.strip()
-    except Exception as e:
-        return f"Error: {e}"
-
-
 if __name__ == '__main__':
     # Fetch data from Notion
     data = fetch_notion_data(notion_database_id)
@@ -59,8 +47,11 @@ if __name__ == '__main__':
     # Extract tasks from the Notion database response
     tasks = []
     for result in data.get('results', []):
-        task_name = result['properties']['Name']['title'][0]['text']['content']
-        tasks.append(task_name)
+        try:
+            task_name = result['properties']['Name']['title'][0]['text']['content']
+            tasks.append(task_name)
+        except (KeyError, IndexError):
+            continue  # Skip tasks with missing or invalid data
 
     # Check if there are tasks
     if not tasks:
@@ -75,17 +66,3 @@ if __name__ == '__main__':
         # Print the recommendations
         print("GPT Recommendations:")
         print(recommendations)
-def query_gpt(prompt):
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Use "gpt-4" if you have access
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=150,
-            temperature=0.7
-        )
-        return response['choices'][0]['message']['content'].strip()
-    except Exception as e:
-        return f"Error: {e}"
