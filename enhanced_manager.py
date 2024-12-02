@@ -13,6 +13,7 @@ class EnhancedTaskManager:
         self.areas_database_id = os.getenv('NOTION_AREAS_DATABASE_ID')
 
     def calculate_urgency(self, due_date):
+        """Calculate urgency based on due date"""
         if not due_date:
             return "medium"
             
@@ -33,20 +34,19 @@ class EnhancedTaskManager:
             return "medium"
 
     def get_area_maslow_levels(self):
+        """Fetch all areas and their Maslow levels"""
         try:
             response = self.notion.databases.query(database_id=self.areas_database_id)
             area_levels = {}
             
             for page in response['results']:
                 area_id = page['id']
-                # Get area name
                 try:
                     area_name = page['properties']['Name']['title'][0]['text']['content']
                 except:
                     print(f"Warning: Could not get name for area {area_id}")
                     continue
                 
-                # Get Maslow level
                 try:
                     maslow_prop = page['properties'].get('Maslow Level', {})
                     maslow_level = maslow_prop.get('select', {}).get('name', 'Uncategorized')
@@ -55,7 +55,7 @@ class EnhancedTaskManager:
                     maslow_level = 'Uncategorized'
                 
                 area_levels[area_id] = {'name': area_name, 'level': maslow_level}
-                print(f"Mapped area: {area_name} -> {maslow_level}")  # Debug print
+                print(f"Mapped area: {area_name} -> {maslow_level}")
             
             return area_levels
         except Exception as e:
@@ -63,6 +63,7 @@ class EnhancedTaskManager:
             return {}
 
     def fetch_tasks(self):
+        """Fetch tasks from Notion database"""
         try:
             response = self.notion.databases.query(
                 database_id=self.database_id,
@@ -80,12 +81,9 @@ class EnhancedTaskManager:
             
             for page in response['results']:
                 task = {}
-                # Debug print to see the structure
-                print("\nProperties available:", list(page['properties'].keys()))
-                
-                for prop_name, prop_data in page['properties'].items():
-                    try:
-                        if prop_data['type'] == 'title':
+                try:
+                    for prop_name, prop_data in page['properties'].items():
+                        if prop_data['type'] == 'title' and prop_name == 'Task':
                             title = prop_data.get('title', [])
                             if title:
                                 task['name'] = title[0]['text']['content']
@@ -102,20 +100,22 @@ class EnhancedTaskManager:
                                 area_info = area_levels.get(area_ids[0], {})
                                 task['area'] = area_info.get('name', 'Uncategorized')
                                 task['maslow_level'] = area_info.get('level', 'Uncategorized')
-                    except Exception as e:
-                        print(f"Error processing property {prop_name}: {str(e)}")
                 
-                if task.get('name'):
-                    if not task.get('urgency') and task.get('due_date'):
-                        task['urgency'] = self.calculate_urgency(task['due_date'])
-                    tasks.append(task)
+                    if task.get('name'):
+                        if not task.get('urgency') and task.get('due_date'):
+                            task['urgency'] = self.calculate_urgency(task['due_date'])
+                        tasks.append(task)
+                except Exception as e:
+                    print(f"Error processing task: {str(e)}")
+                    continue
             
             return tasks
         except Exception as e:
             print(f"Error fetching tasks: {str(e)}")
             return []
-        
+
     def analyze_task_distribution(self, tasks):
+        """Analyze task distribution across Maslow levels"""
         distribution = defaultdict(int)
         total_tasks = len(tasks)
         
@@ -124,23 +124,15 @@ class EnhancedTaskManager:
             distribution[level] += 1
         
         analysis = "\n📊 Task Distribution Analysis:\n"
-        maslow_levels = ['Physiological Needs', 'Safety', 'Love and Belonging', 'Esteem', 'Self-Actualization', 'Uncategorized']
         
-        for level in maslow_levels:
-            count = distribution.get(level, 0)
+        for level, count in distribution.items():
             percentage = (count / total_tasks) * 100 if total_tasks > 0 else 0
-            if count > 0:  # Only show levels that have tasks
-                analysis += f"\n{level}: {count} tasks ({percentage:.1f}%)"
-                
-                if level != 'Uncategorized':
-                    if percentage < 10:
-                        analysis += f"\n⚠️ Consider adding more tasks for {level} needs"
-                    elif percentage > 40:
-                        analysis += f"\n📌 Heavy focus on {level} needs"
+            analysis += f"\n{level}: {count} tasks ({percentage:.1f}%)"
         
         return analysis
 
     def generate_recommendations(self, tasks):
+        """Generate prioritized task recommendations"""
         maslow_tasks = defaultdict(lambda: defaultdict(list))
         
         for task in tasks:
@@ -161,23 +153,22 @@ class EnhancedTaskManager:
         
         recommendations = "🎯 Task Recommendations by Development Area\n\n"
         
-        maslow_levels = ['Physiological Needs', 'Safety', 'Love and Belonging', 'Esteem', 'Self-Actualization', 'Uncategorized']
-        for level in maslow_levels:
-            if level in maslow_tasks and any(maslow_tasks[level].values()):
+        for level in maslow_tasks:
+            if any(maslow_tasks[level].values()):
                 recommendations += f"\n== {level} ==\n"
                 
                 if maslow_tasks[level]['urgent_important']:
                     recommendations += "\n🔥 Do First:\n"
                     for task in maslow_tasks[level]['urgent_important']:
                         due = f" (Due: {task['due_date']})" if task.get('due_date') else ""
-                        area = f" [{task['area']}]" if task.get('area') else ""
+                        area = f" [{task.get('area', '')}]" if task.get('area') else ""
                         recommendations += f"- {task['name']}{area}{due}\n"
                 
                 if maslow_tasks[level]['not_urgent_important']:
                     recommendations += "\n📅 Schedule:\n"
                     for task in maslow_tasks[level]['not_urgent_important']:
                         due = f" (Due: {task['due_date']})" if task.get('due_date') else ""
-                        area = f" [{task['area']}]" if task.get('area') else ""
+                        area = f" [{task.get('area', '')}]" if task.get('area') else ""
                         recommendations += f"- {task['name']}{area}{due}\n"
                 
                 other_tasks = maslow_tasks[level]['urgent_not_important'] + maslow_tasks[level]['not_urgent_not_important']
@@ -185,7 +176,7 @@ class EnhancedTaskManager:
                     recommendations += "\n📌 Also Consider:\n"
                     for task in other_tasks[:3]:
                         due = f" (Due: {task['due_date']})" if task.get('due_date') else ""
-                        area = f" [{task['area']}]" if task.get('area') else ""
+                        area = f" [{task.get('area', '')}]" if task.get('area') else ""
                         recommendations += f"- {task['name']}{area}{due}\n"
         
         return recommendations
