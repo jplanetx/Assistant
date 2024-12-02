@@ -26,6 +26,21 @@ def fetch_notion_data(database_id):
 
 def query_gpt(prompt):
     try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # Use "gpt-4" if you have access
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150,
+            temperature=0.7
+        )
+        return response['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        return f"Error: {e}"
+
+
+    try:
         response = openai.Completion.create(
             engine="text-davinci-003",
             prompt=prompt,
@@ -60,3 +75,17 @@ if __name__ == '__main__':
         # Print the recommendations
         print("GPT Recommendations:")
         print(recommendations)
+def query_gpt(prompt):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # Use "gpt-4" if you have access
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150,
+            temperature=0.7
+        )
+        return response['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        return f"Error: {e}"
