@@ -1,3 +1,12 @@
 # Ignore .env file
 .env
 test.env
+
+# Ignore VS Code settings
+.vscode/
+
+# Ignore log files
+*.log
+
+# Ignore unknown files
+python
